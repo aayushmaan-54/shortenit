@@ -1,8 +1,9 @@
 from contextlib import asynccontextmanager
 
+from fastapi import FastAPI
+
 from app.core import logger, settings
 from app.middlewares import app_middlewares
-from fastapi import FastAPI
 
 
 @asynccontextmanager
@@ -18,6 +19,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title=f"{settings.app_name} API",
+    debug=settings.debug,
     description=f"`{settings.app_name}` API documentation",
     version="1.0.0",
     contact={

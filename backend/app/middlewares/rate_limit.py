@@ -1,11 +1,12 @@
 import fnmatch
 
-from app.main import app
-from fastapi import Request
+from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 from limits import parse
 from limits.storage import MemoryStorage
 from limits.strategies import FixedWindowRateLimiter
+
+from app.main import app
 
 EXCLUDE_ROUTES = [
     "/",
@@ -23,7 +24,7 @@ AUTH_LIMIT = parse("5/minute")
 
 
 @app.middleware("http")
-async def rate_limit_middleware(request: Request, call_next):
+async def rate_limit_middleware(request: Request, call_next) -> Response:
     """
     Rate limit routes based on the request path and client IP address;
     Exclude certain routes from rate limiting;

@@ -1,7 +1,8 @@
 import fnmatch
 
-from app.main import app
 from fastapi import Request
+
+from app.main import app
 
 PUBLIC_ROUTES = [
     "/",

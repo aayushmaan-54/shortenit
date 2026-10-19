@@ -1,14 +1,15 @@
 import uuid
 from contextvars import ContextVar
 
+from fastapi import Request, Response
+
 from app.main import app
-from fastapi import Request
 
 request_id_context: ContextVar[str] = ContextVar("request_id", default="unknown")
 
 
 @app.middleware("http")
-async def request_id_middleware(request: Request, call_next):
+async def request_id_middleware(request: Request, call_next) -> Response:
     """
     Generate unique req id for each req;
     add that to res header;
