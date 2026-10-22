@@ -2,19 +2,23 @@ import fnmatch
 
 from fastapi import Request
 
-from app.main import app
-
 PUBLIC_ROUTES = [
     "/",
-    "/health",
+    "/health/*",
     "/auth/login",
     "/auth/register",
+    "/auth/forgot-password",
+    "/auth/reset-password",
+    "/auth/confirm-user",
+    "/auth/resend-confirmation",
+    "/auth/refresh",
+    "/swagger",
     "/docs",
-    "/openapi.json",
+    "/docs/*",
+    "/api-docs/*",
 ]
 
 
-@app.middleware("http")
 async def auth_middleware(request: Request, call_next):
     """
     Authenticate the request and check if the path is public or requires authentication;
@@ -26,5 +30,6 @@ async def auth_middleware(request: Request, call_next):
             return await call_next(request)
 
     # TODO: Handle rest logic
+    # add userId in request.state.user_id
 
     return await call_next(request)

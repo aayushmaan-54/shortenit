@@ -1,21 +1,10 @@
-from contextlib import asynccontextmanager
-
 from fastapi import FastAPI
 
-from app.core import logger, settings
+from app.api.health import router as health_router
+from app.core import settings
+from app.core.exception_handlers import exception_handlers
+from app.core.lifespan import lifespan
 from app.middlewares import app_middlewares
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """
-    Lifespan event handler
-    """
-    mode = "development" if settings.debug else "production"
-    logger.info("Starting %s in %s mode...", settings.app_name, mode)
-    yield
-    logger.info("Shutting down %s gracefully...", settings.app_name)
-
 
 app = FastAPI(
     title=f"{settings.app_name} API",
@@ -33,6 +22,7 @@ app = FastAPI(
     },
     lifespan=lifespan,
     middleware=app_middlewares,
+    exception_handlers=exception_handlers,
     docs_url="/swagger" if settings.debug else None,
     redoc_url="/docs" if settings.debug else None,
     openapi_url=("/api-docs/openapi.json" if settings.debug else None),
@@ -52,7 +42,4 @@ async def root():
     }
 
 
-@app.get("/ping", tags=["system"])
-async def ping():
-    """Endpoint to verify the API is up and running."""
-    return {"status": "healthy", "version": app.version}
+app.include_router(health_router)

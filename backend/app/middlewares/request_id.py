@@ -3,12 +3,10 @@ from contextvars import ContextVar
 
 from fastapi import Request, Response
 
-from app.main import app
 
 request_id_context: ContextVar[str] = ContextVar("request_id", default="unknown")
 
 
-@app.middleware("http")
 async def request_id_middleware(request: Request, call_next) -> Response:
     """
     Generate unique req id for each req;
@@ -16,8 +14,13 @@ async def request_id_middleware(request: Request, call_next) -> Response:
     store in contextvar for logging
     """
     request_id = str(uuid.uuid4())
+    # Also on request.state: the global exception handler runs after the contextvar is reset
+    request.state.request_id = request_id
     token = request_id_context.set(request_id)
-    response = await call_next(request)
-    response.headers["X-Request-ID"] = request_id
-    request_id_context.reset(token)
-    return response
+    try:
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        return response
+    finally:
+        # Reset even if the request raised, so the id never leaks into another request
+        request_id_context.reset(token)
