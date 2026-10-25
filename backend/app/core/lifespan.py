@@ -2,9 +2,10 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.clients.redis import close_redis
-from app.core.config import settings
-from app.core.logger import logger
+from app.clients import close_redis
+
+from .config import settings
+from .logger import logger
 
 
 @asynccontextmanager

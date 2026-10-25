@@ -1,6 +1,6 @@
 from redis.asyncio import Redis
 
-from app.core.config import settings
+from app.core import settings
 
 # Shared async client; connects lazily on first command, closed in app lifespan
 redis_client: Redis = Redis.from_url(settings.redis_url, decode_responses=True)

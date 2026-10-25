@@ -4,11 +4,12 @@ from collections.abc import Awaitable, Callable
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
-from app.clients.redis import redis_client
+from app.clients import redis_client
 from app.core import logger
 
 router = APIRouter(prefix="/health", tags=["system"])
 
+# Maximum time allowed for each readiness check (seconds)
 CHECK_TIMEOUT_S = 1.0
 
 
@@ -16,8 +17,7 @@ async def _check_redis() -> None:
     await redis_client.ping()
 
 
-# Add new dependencies here (e.g. "db": _check_db)
-READINESS_CHECKS: dict[str, Callable[[], Awaitable[None]]] = {
+READINESS_CHECKS = {
     "redis": _check_redis,
 }
 
@@ -34,18 +34,19 @@ async def _run_check(
         return name, False
 
 
+# Check if Application Process is live
 @router.get("/live", summary="Liveness probe")
 async def live():
     """Process is up; checks no dependencies so a DB/Redis blip doesn't trigger restarts"""
     return {"status": "ok"}
 
 
+# Check can Application handle traffic
 @router.get("/ready", summary="Readiness probe")
-async def ready() -> JSONResponse:
+async def ready():
     """
     All dependencies reachable;
     returns 503 if any check fails so the load balancer stops routing traffic here;
-    error details are logged, not returned
     """
     results = await asyncio.gather(
         *(_run_check(name, check) for name, check in READINESS_CHECKS.items())

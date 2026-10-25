@@ -4,15 +4,18 @@ import math
 import time
 
 from fastapi import Request, Response
-from fastapi.responses import JSONResponse
 from limits import RateLimitItem, parse
 from limits.aio.storage import RedisStorage
 from limits.aio.strategies import MovingWindowRateLimiter
 from limits.errors import StorageError
 
-from app.core import logger
-from app.core.config import settings
-from app.utilities.get_client_ip import get_client_ip
+from app.core import (
+    TooManyRequestsException,
+    app_exception_handler,
+    logger,
+    settings,
+)
+from app.utilities import get_client_ip
 
 EXCLUDE_ROUTES = [
     "/",
@@ -143,14 +146,9 @@ def _select_checks(
     ]
 
 
-def _too_many_requests(reset_time: float) -> JSONResponse:
-    """Build the 429 response with a Retry-After header"""
-    retry_after = max(1, math.ceil(reset_time - time.time()))
-    return JSONResponse(
-        status_code=429,
-        content={"error": "Rate limit exceeded"},
-        headers={"Retry-After": str(retry_after)},
-    )
+def _retry_after(reset_time: float) -> int:
+    """Seconds until the window resets; at least 1"""
+    return max(1, math.ceil(reset_time - time.time()))
 
 
 async def rate_limit_middleware(request: Request, call_next) -> Response:
@@ -183,7 +181,10 @@ async def rate_limit_middleware(request: Request, call_next) -> Response:
                 reset_time, _ = await limiter.get_window_stats(
                     limit, pattern, key_type, value
                 )
-                return _too_many_requests(reset_time)
+                # Returned, not raised: exceptions raised in middleware skip the app handlers
+                return await app_exception_handler(
+                    request, TooManyRequestsException(_retry_after(reset_time))
+                )
     except StorageError:
         logger.exception("Rate limiter storage unavailable; allowing request")
 

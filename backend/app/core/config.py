@@ -1,22 +1,81 @@
+from datetime import timedelta
 from pathlib import Path
 
+import pytimeparse2
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ENV_FILE_PATH = Path(__file__).resolve().parents[2] / ".env"
+MIN_JWT_SECRET_KEY_BYTES = 32
 
 
 class Settings(BaseSettings):
     """Define the variables used in application"""
 
+    # App
     app_name: str = "ShortenIt"
     debug: bool = False
+
+    # Network & Security
     cors_origins: list[str] = ["http://localhost:5173", "http://localhost:5174"]
     trusted_hosts: list[str] = ["localhost", "::1", "127.0.0.1"]
-    forwarded_allow_ips: str = "127.0.0.1"
-    redis_url: str = "redis://localhost:6379/0"
     max_body_size: int = 1_048_576  # 1 MB
 
-    model_config = SettingsConfigDict(env_file=ENV_FILE_PATH, env_file_encoding="utf-8")
+    # Proxy: IPs trusted to send real client IP
+    forwarded_allow_ips: str = "127.0.0.1"
+
+    # Redis (Upstash)
+    redis_url: str = "redis://localhost:6379/0"
+
+    # Auth
+    jwt_secret_key: str
+    jwt_algorithm: str = "HS256"
+    encryption_key: str
+    access_token_expires_in: int  # seconds, parsed from e.g. "15m"
+    refresh_token_expires_in: int  # seconds, parsed from e.g. "7d"
+    token_issuer: str = "ShortenIt-api"
+    token_audience: str = "ShortenIt-api"
+
+    @field_validator(
+        "access_token_expires_in", "refresh_token_expires_in", mode="before"
+    )
+    @classmethod
+    def parse_duration(cls, val: str | float | timedelta) -> int:
+        """Parse "15m"/"7d"-style strings (or raw numbers) into seconds"""
+        if isinstance(val, (int, float)):
+            seconds = int(val)
+        elif isinstance(val, timedelta):
+            seconds = int(val.total_seconds())
+        else:
+            parsed = pytimeparse2.parse(val)
+            if parsed is None:
+                raise ValueError(f"Could not parse duration string: '{val}'")
+            if isinstance(parsed, timedelta):
+                seconds = int(parsed.total_seconds())
+            else:
+                seconds = int(parsed)
+
+        if seconds <= 0:
+            raise ValueError(f"Duration must be positive, got '{val}'")
+
+        return seconds
+
+    @field_validator("jwt_secret_key")
+    @classmethod
+    def validate_jwt_secret_key(cls, val: str) -> str:
+        """HS256 needs a key at least as long as its 256-bit output"""
+        if len(val.encode("utf-8")) < MIN_JWT_SECRET_KEY_BYTES:
+            raise ValueError(
+                f"JWT_SECRET_KEY must be at least {MIN_JWT_SECRET_KEY_BYTES} bytes"
+            )
+        return val
+
+    model_config = SettingsConfigDict(
+        env_file=ENV_FILE_PATH if ENV_FILE_PATH.exists() else None,
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
 
 
-settings = Settings()
+settings = Settings()  # type: ignore[call-arg]
