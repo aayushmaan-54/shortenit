@@ -87,13 +87,15 @@ def _create_token(
     sub: str,
     token_type: str,
     expires_in: int,
+    fingerprint: str,
+    family_id: str | None = None,
     additional_claims: dict[str, Any] | None = None,
 ):
     """Create a signed JWT; reserved claims always override additional claims"""
     now = datetime.now(UTC)
+    key_id, jwt_secret_key = list(settings.jwt_signing_keys.items())[-1]
 
     payload = {
-        **(additional_claims or {}),
         "sub": sub,  # Subject
         "iat": now,  # IssuedAt
         "nbf": now,  # Not Before; Invalid before time
@@ -101,11 +103,21 @@ def _create_token(
         "iss": TOKEN_ISSUER,  # Issuer
         "aud": TOKEN_AUDIENCE,  # Audience
         "jti": str(uuid4()),  # JWT ID; Unique identifier
+        "fgp": fingerprint,  # Client device identifier
         "type": token_type,
+        **({"fid": family_id} if family_id else {}),  # Token family identifier
+        **(additional_claims or {}),
+    }
+
+    headers = {
+        "kid": key_id,  # Key identifier that encoded the token
     }
 
     return jwt.encode(
-        payload=payload, key=settings.jwt_secret_key, algorithm=settings.jwt_algorithm
+        payload=payload,
+        key=jwt_secret_key,
+        algorithm=settings.jwt_algorithm,
+        headers=headers,
     )
 
 
@@ -113,13 +125,31 @@ def _decode_token(token: str, expected_type: str):
     """
     Decode and validate a JWT, returning its payload
     """
+    kid = jwt.get_unverified_header(token).get("kid")
+    jwt_secret_key = settings.jwt_signing_keys.get(kid) if kid else None
+
+    if jwt_secret_key is None:
+        raise InvalidTokenError("Invalid or missing Key ID (kid)")
+
     payload = jwt.decode(
         token,
-        key=settings.jwt_secret_key,
+        key=jwt_secret_key,
         algorithms=[settings.jwt_algorithm],
         audience=TOKEN_AUDIENCE,
         issuer=TOKEN_ISSUER,
-        options={"require": ["exp", "iat", "sub", "jti", "type"]},
+        leeway=settings.jwt_leeway_seconds,  # exp and iat claim will have room of 30s; clock skew
+        options={
+            "require": [
+                "exp",
+                "iat",
+                "sub",
+                "jti",
+                "type",
+                "aud",
+                "nbf",
+                "fgp",
+            ]
+        },
     )
 
     if payload["type"] != expected_type:
@@ -129,10 +159,18 @@ def _decode_token(token: str, expected_type: str):
 
 
 # --------------- Access Token ---------------
-def create_access_token(sub: str, additional_claims: dict[str, Any] | None = None):
+def create_access_token(
+    sub: str,
+    fingerprint: str,
+    additional_claims: dict[str, Any] | None = None,
+):
     """Create a signed JWT Access token"""
     return _create_token(
-        sub, "access", settings.access_token_expires_in, additional_claims
+        sub=sub,
+        fingerprint=fingerprint,
+        token_type="access",
+        expires_in=settings.access_token_expires_in,
+        additional_claims=additional_claims,
     )
 
 
@@ -145,9 +183,21 @@ def decode_access_token(access_token: str):
 
 
 # --------------- Refresh Token ---------------
-def create_refresh_token(sub: str):
+def create_refresh_token(
+    sub: str,
+    fingerprint: str,
+    family_id: str,
+    additional_claims: dict[str, Any] | None = None,
+):
     """Create a signed JWT Refresh token"""
-    return _create_token(sub, "refresh", settings.refresh_token_expires_in)
+    return _create_token(
+        sub=sub,
+        token_type="refresh",
+        expires_in=settings.refresh_token_expires_in,
+        fingerprint=fingerprint,
+        family_id=family_id,
+        additional_claims=additional_claims,
+    )
 
 
 def decode_refresh_token(refresh_token: str):

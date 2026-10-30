@@ -28,13 +28,14 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     # Auth
-    jwt_secret_key: str
+    jwt_signing_keys: dict[str, str]
     jwt_algorithm: str = "HS256"
     encryption_key: str
     access_token_expires_in: int  # seconds, parsed from e.g. "15m"
     refresh_token_expires_in: int  # seconds, parsed from e.g. "7d"
     token_issuer: str = "ShortenIt-api"
     token_audience: str = "ShortenIt-api"
+    jwt_leeway_seconds: int = 30  # 30 sec
 
     @field_validator(
         "access_token_expires_in", "refresh_token_expires_in", mode="before"
@@ -60,14 +61,18 @@ class Settings(BaseSettings):
 
         return seconds
 
-    @field_validator("jwt_secret_key")
+    @field_validator("jwt_signing_keys")
     @classmethod
-    def validate_jwt_secret_key(cls, val: str) -> str:
-        """HS256 needs a key at least as long as its 256-bit output"""
-        if len(val.encode("utf-8")) < MIN_JWT_SECRET_KEY_BYTES:
-            raise ValueError(
-                f"JWT_SECRET_KEY must be at least {MIN_JWT_SECRET_KEY_BYTES} bytes"
-            )
+    def validate_jwt_signing_keys(cls, val: dict[str, str]) -> dict[str, str]:
+        """Need at least one key; HS256 needs each key at least as long as its 256-bit output"""
+        if not val:
+            raise ValueError("JWT_SIGNING_KEYS must have at least one key")
+
+        for kid, key in val.items():
+            if len(key.encode("utf-8")) < MIN_JWT_SECRET_KEY_BYTES:
+                raise ValueError(
+                    f"JWT_SIGNING_KEYS['{kid}'] must be at least {MIN_JWT_SECRET_KEY_BYTES} bytes"
+                )
         return val
 
     model_config = SettingsConfigDict(
