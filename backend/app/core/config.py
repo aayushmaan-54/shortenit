@@ -31,11 +31,17 @@ class Settings(BaseSettings):
     jwt_signing_keys: dict[str, str]
     jwt_algorithm: str = "HS256"
     encryption_key: str
+    otp_secret_key: str
+    otp_length: int = 6
     access_token_expires_in: int  # seconds, parsed from e.g. "15m"
     refresh_token_expires_in: int  # seconds, parsed from e.g. "7d"
     token_issuer: str = "ShortenIt-api"
     token_audience: str = "ShortenIt-api"
     jwt_leeway_seconds: int = 30  # 30 sec
+
+    # DB
+    mongodb_uri: str = "mongodb://localhost:27017"
+    mongodb_database: str = "my_database"
 
     @field_validator(
         "access_token_expires_in", "refresh_token_expires_in", mode="before"
@@ -60,6 +66,16 @@ class Settings(BaseSettings):
             raise ValueError(f"Duration must be positive, got '{val}'")
 
         return seconds
+
+    @field_validator("otp_secret_key")
+    @classmethod
+    def validate_otp_secret_key(cls, val: str) -> str:
+        """HMAC-SHA256 key should be at least as long as its 256-bit output"""
+        if len(val.encode("utf-8")) < MIN_JWT_SECRET_KEY_BYTES:
+            raise ValueError(
+                f"OTP_SECRET_KEY must be at least {MIN_JWT_SECRET_KEY_BYTES} bytes"
+            )
+        return val
 
     @field_validator("jwt_signing_keys")
     @classmethod

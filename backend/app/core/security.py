@@ -1,4 +1,5 @@
 import hashlib
+import hmac
 import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
@@ -27,6 +28,7 @@ token_auth_scheme = HTTPBearer(auto_error=False)
 # Constants
 TOKEN_ISSUER = settings.token_issuer
 TOKEN_AUDIENCE = settings.token_audience
+OTP_LENGTH = settings.otp_length
 
 
 # --------------- Hash ---------------
@@ -69,6 +71,29 @@ def verify_fast_hash(entity: str, hashed_entity: str):
     """Verify plaintext entity against a SHA-256 hash"""
     calculated_hash = create_fast_hash(entity=entity)
     return secrets.compare_digest(calculated_hash, hashed_entity)
+
+
+def create_keyed_hash(entity: str):
+    """
+    Generate deterministic HMAC-SHA256 hex digest with a server secret
+    """
+    return hmac.new(
+        settings.otp_secret_key.encode("utf-8"),
+        entity.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def verify_keyed_hash(entity: str, hashed_entity: str):
+    """Verify plaintext entity against an HMAC-SHA256 hash"""
+    calculated_hash = create_keyed_hash(entity=entity)
+    return secrets.compare_digest(calculated_hash, hashed_entity)
+
+
+# --------------- OTP ---------------
+def create_otp():
+    """Generate cryptographically secure zero-padded numeric OTP"""
+    return f"{secrets.randbelow(10**OTP_LENGTH):0{OTP_LENGTH}d}"
 
 
 # --------------- Encryption ---------------
