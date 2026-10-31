@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from typing import Any, ClassVar
 
 from pymongo import AsyncMongoClient, IndexModel, MongoClient
@@ -26,8 +27,9 @@ class BaseRepository:
 
     collection_name: ClassVar[str | None] = None
     db_name: ClassVar[str | None] = None
-    indexes: ClassVar[list[dict[str, Any]]] = []
-    search_indexes: ClassVar[list[dict[str, Any]]] = []
+    # Tuples in subclasses: immutable, so no `ClassVar` annotation needed there
+    indexes: ClassVar[Sequence[dict[str, Any]]] = ()
+    search_indexes: ClassVar[Sequence[dict[str, Any]]] = ()
 
     _indexed_collections: ClassVar[set[str]] = set()
 
