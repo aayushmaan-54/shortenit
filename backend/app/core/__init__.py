@@ -30,5 +30,6 @@ from .security import (
     verify_fast_hash,
     verify_hardened_hash,
 )
+from .templates import email_templates
 
 # `lifespan` is not re-exported: it imports `app.clients`, which imports `app.core` (circular)

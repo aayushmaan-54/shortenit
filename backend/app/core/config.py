@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     # App
     app_name: str = "ShortenIt"
     debug: bool = False
+    frontend_origin: str = "http://localhost:5173"
 
     # Network & Security
     cors_origins: list[str] = ["http://localhost:5173", "http://localhost:5174"]
@@ -49,6 +50,14 @@ class Settings(BaseSettings):
     # DB
     mongodb_uri: str = "mongodb://localhost:27017"
     mongodb_database: str = "my_database"
+
+    # AWS
+    aws_access_key: str
+    aws_secret_access_key: str
+    aws_default_region: str = "ap-south-1"
+
+    # SES
+    aws_ses_source_email: str
 
     @field_validator(
         "access_token_expires_in",

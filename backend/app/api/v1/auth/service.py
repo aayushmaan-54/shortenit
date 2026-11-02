@@ -1,9 +1,11 @@
 from typing import cast
 
+from fastapi import BackgroundTasks
 from pymongo.errors import DuplicateKeyError
 
 from app.api.v1.auth.repository import UserRepository
 from app.clients import redis_client
+from app.clients.aws import send_email
 from app.core import logger, settings
 from app.core.exceptions import (
     BadRequestException,
@@ -18,6 +20,7 @@ from app.core.security import (
     create_otp,
     verify_keyed_hash,
 )
+from app.core.templates import email_templates
 
 ONE_DAY_SECONDS = 86_400
 
@@ -26,9 +29,18 @@ DUPLICATE_FIELD_MESSAGES = {
     "email": "Email is already registered",
 }
 
+OTP_EMAILS: dict[OtpPurpose, tuple[str, str]] = {
+    "verify_email": (
+        "verify_email.html",
+        f"Your {settings.app_name} verification code",
+    ),
+}
+
 
 class AuthService:
-    async def _send_otp(self, purpose: OtpPurpose, email: str):
+    async def _send_otp(
+        self, purpose: OtpPurpose, email: str, background_tasks: BackgroundTasks
+    ):
         """
         Generate an OTP, store only its keyed hash with a TTL, start resend cooldown;
         a new OTP replaces the old one and resets its failed attempts;
@@ -37,28 +49,51 @@ class AuthService:
 
         logger.debug("OTP generated for %s (%s): %s", email, purpose, otp)
 
-        async with redis_client.pipeline(transaction=True) as pipe:
-            pipe.set(
-                RedisKey.otp(purpose, email),
-                create_keyed_hash(otp),
-                ex=settings.otp_expires_in,
-            )
-            pipe.delete(RedisKey.otp_attempts(purpose, email))
-            pipe.set(
-                RedisKey.otp_cooldown(purpose, email),
-                1,
-                ex=settings.otp_resend_cooldown,
-            )
-            pipe.incr(RedisKey.otp_daily_count(purpose, email))
-            # NX: window starts at the first OTP of the day, later sends don't extend it
-            pipe.expire(
-                RedisKey.otp_daily_count(purpose, email), ONE_DAY_SECONDS, nx=True
-            )
-            await pipe.execute()
+        # `execute()` resets the pipeline itself, so no `async with` needed
+        pipe = redis_client.pipeline(transaction=True)
+        pipe.set(
+            RedisKey.otp(purpose, email),
+            create_keyed_hash(otp),
+            ex=settings.otp_expires_in,
+        )
+        pipe.delete(RedisKey.otp_attempts(purpose, email))
+        pipe.set(
+            RedisKey.otp_cooldown(purpose, email),
+            1,
+            ex=settings.otp_resend_cooldown,
+        )
+        pipe.incr(RedisKey.otp_daily_count(purpose, email))
+        # NX: window starts at the first OTP of the day, later sends don't extend it
+        pipe.expire(RedisKey.otp_daily_count(purpose, email), ONE_DAY_SECONDS, nx=True)
+        await pipe.execute()
 
-        # TODO: send `otp` via email client (background task)
+        template_name, subject = OTP_EMAILS[purpose]
+        expires_in_minutes = settings.otp_expires_in // 60
 
-    async def sign_up(self, username: str, email: str, password: str):
+        html_body = email_templates.get_template(template_name).render(
+            otp_code=otp, otp_expires_in=expires_in_minutes
+        )
+        text_body = (
+            f"Your {settings.app_name} code: {otp}. "
+            f"It is valid for {expires_in_minutes} minutes. "
+            "Please do not share this code with anyone."
+        )
+
+        background_tasks.add_task(
+            send_email,
+            to_email=[email],
+            subject=subject,
+            html_body=html_body,
+            text_body=text_body,
+        )
+
+    async def sign_up(
+        self,
+        username: str,
+        email: str,
+        password: str,
+        background_tasks: BackgroundTasks,
+    ):
         """
         Create an unverified user and send an email verification OTP;
         uniqueness is enforced by the unique indexes;
@@ -78,7 +113,9 @@ class AuthService:
 
             raise ConflictException(message) from None
 
-        await self._send_otp(purpose="verify_email", email=email)
+        await self._send_otp(
+            purpose="verify_email", email=email, background_tasks=background_tasks
+        )
 
         return {
             "message": "Account created. We've sent a verification code to your email",
@@ -98,10 +135,11 @@ class AuthService:
                 "Invalid or expired code. Please request a new one"
             )
 
-        async with redis_client.pipeline(transaction=True) as pipe:
-            pipe.incr(attempts_key)
-            pipe.expire(attempts_key, settings.otp_expires_in)
-            attempts, _ = await pipe.execute()
+        # `execute()` resets the pipeline itself, so no `async with` needed
+        pipe = redis_client.pipeline(transaction=True)
+        pipe.incr(attempts_key)
+        pipe.expire(attempts_key, settings.otp_expires_in)
+        attempts, _ = await pipe.execute()
 
         if attempts > settings.otp_max_attempts:
             await redis_client.delete(otp_key)
@@ -126,7 +164,9 @@ class AuthService:
 
         return user
 
-    async def resend_confirmation_email(self, email: str):
+    async def resend_confirmation_email(
+        self, email: str, background_tasks: BackgroundTasks
+    ):
         """
         Resend email verification OTP;
         same response whether or not the account exists, so emails can't be enumerated
@@ -152,7 +192,9 @@ class AuthService:
             )
 
         if await UserRepository().get_unverified_user(email=email):
-            await self._send_otp(purpose="verify_email", email=email)
+            await self._send_otp(
+                purpose="verify_email", email=email, background_tasks=background_tasks
+            )
 
         return {
             "message": "If an unverified account exists for this email, we've sent a new code"

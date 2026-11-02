@@ -1,0 +1,120 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body
+    style="
+      font-family:
+        -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Roboto,
+        Helvetica, Arial, sans-serif;
+      background-color: #f4f4f5;
+      margin: 0;
+      padding: 0;
+    "
+  >
+    <table
+      width="100%"
+      cellpadding="0"
+      cellspacing="0"
+      style="background-color: #f4f4f5; padding: 40px 20px"
+    >
+      <tr>
+        <td align="center">
+          <table
+            width="100%"
+            max-width="600"
+            cellpadding="0"
+            cellspacing="0"
+            style="
+              background-color: #ffffff;
+              border-radius: 8px;
+              padding: 40px;
+              max-width: 600px;
+              box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            "
+          >
+            <tr>
+              <td style="text-align: center; padding-bottom: 30px">
+                <h1
+                  style="
+                    margin: 0;
+                    color: #111827;
+                    font-size: 28px;
+                    font-weight: bold;
+                  "
+                >
+                  Shorten It
+                </h1>
+              </td>
+            </tr>
+            <tr>
+              <td
+                style="
+                  color: #374151;
+                  font-size: 16px;
+                  line-height: 24px;
+                  text-align: left;
+                "
+              >
+                <p style="margin-top: 0">Hello,</p>
+                <p>
+                  Welcome to <strong>Shorten It</strong>. Please use the
+                  verification code below to complete your registration.
+                </p>
+
+                <table width="100%" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td align="center" style="padding: 30px 0">
+                      <div
+                        style="
+                          background-color: #f3f4f6;
+                          border-radius: 8px;
+                          padding: 16px 32px;
+                          display: inline-block;
+                          letter-spacing: 6px;
+                          font-size: 32px;
+                          font-weight: 700;
+                          color: #111827;
+                          border: 1px solid #e5e7eb;
+                        "
+                      >
+                        {{otp_code}}
+                      </div>
+                    </td>
+                  </tr>
+                </table>
+
+                <p style="font-size: 14px; color: #6b7280; margin-bottom: 5px">
+                  This code is valid for {{otp_expires_in}} minutes. Please do
+                  not share this code with anyone.
+                </p>
+
+                <hr
+                  style="
+                    border: none;
+                    border-top: 1px solid #e5e7eb;
+                    margin: 30px 0;
+                  "
+                />
+
+                <p
+                  style="
+                    margin: 0;
+                    font-size: 12px;
+                    color: #9ca3af;
+                    text-align: center;
+                  "
+                >
+                  If you didn't create an account with Shorten It, you can
+                  safely ignore this email.
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
