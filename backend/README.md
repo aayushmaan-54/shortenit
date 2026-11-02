@@ -17,4 +17,4 @@ Run: uvicorn app.main:app --no-server-header
 - Reuse detection
 - Multi-tab sync (Web Locks + BroadcastChannel)
 - Contextual Fingerprinting
-- For more see [Auth Design](app/docs/auth.md)
+- For more see [Auth Design](docs/auth.md)

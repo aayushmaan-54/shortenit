@@ -2,7 +2,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import pytimeparse2
-from pydantic import field_validator
+from pydantic import PositiveInt, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ENV_FILE_PATH = Path(__file__).resolve().parents[2] / ".env"
@@ -31,20 +31,32 @@ class Settings(BaseSettings):
     jwt_signing_keys: dict[str, str]
     jwt_algorithm: str = "HS256"
     encryption_key: str
-    otp_secret_key: str
-    otp_length: int = 6
     access_token_expires_in: int  # seconds, parsed from e.g. "15m"
     refresh_token_expires_in: int  # seconds, parsed from e.g. "7d"
+    refresh_grace_period: int = 10  # seconds; multi-tab refresh window
     token_issuer: str = "ShortenIt-api"
     token_audience: str = "ShortenIt-api"
     jwt_leeway_seconds: int = 30  # 30 sec
+
+    # OTP
+    otp_secret_key: str
+    otp_length: PositiveInt = 6
+    otp_expires_in: int = 300  # seconds; 5 min
+    otp_resend_cooldown: int = 60  # seconds; 1 resend per min
+    otp_max_attempts: PositiveInt = 3  # wrong guesses before OTP is invalidated
+    otp_daily_limit: PositiveInt = 5  # OTPs sent per email per day
 
     # DB
     mongodb_uri: str = "mongodb://localhost:27017"
     mongodb_database: str = "my_database"
 
     @field_validator(
-        "access_token_expires_in", "refresh_token_expires_in", mode="before"
+        "access_token_expires_in",
+        "refresh_token_expires_in",
+        "refresh_grace_period",
+        "otp_expires_in",
+        "otp_resend_cooldown",
+        mode="before",
     )
     @classmethod
     def parse_duration(cls, val: str | float | timedelta) -> int:

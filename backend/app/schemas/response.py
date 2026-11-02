@@ -8,4 +8,4 @@ class ApiResponse[T](BaseModel):
 
     success: bool = True
     message: str | None = None
-    data: T
+    data: T | None = None  # None for message-only responses

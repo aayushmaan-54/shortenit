@@ -5,11 +5,6 @@ REDIS_KEY_PREFIX = "shortenit"
 
 OtpPurpose = Literal["verify_email", "reset_password"]
 
-# TODO: wirte these in settings config
-GRACE_TTL = 10
-OTP_TTL = 300
-OTP_COOLDOWN_TTL = 60
-
 
 class RedisKey:
     """Single source of Redis key names"""
@@ -39,3 +34,7 @@ class RedisKey:
     @staticmethod
     def otp_cooldown(purpose: OtpPurpose, email: str):
         return f"{REDIS_KEY_PREFIX}:auth:otp_cooldown:{purpose}:{email}"
+
+    @staticmethod
+    def otp_daily_count(purpose: OtpPurpose, email: str):
+        return f"{REDIS_KEY_PREFIX}:auth:otp_daily_count:{purpose}:{email}"

@@ -1,8 +1,15 @@
 from fastapi import APIRouter, status
 
-from app.api.v1.auth.schema import SignUpRequest, SignUpResponse
+from app.api.v1.auth.schema import (
+    ConfirmUserRequest,
+    ConfirmUserResponse,
+    ResendConfirmationEmailRequest,
+    SignUpRequest,
+    SignUpResponse,
+)
 from app.api.v1.auth.service import AuthService
 from app.schemas.response import ApiResponse
+from app.schemas.types import PyObjectId
 
 # Prefix: /api/v1/auth/
 router = APIRouter()
@@ -21,5 +28,24 @@ async def sign_up(user_data: SignUpRequest):
 
     return ApiResponse(
         message=result["message"],
-        data=SignUpResponse(id=result["user_id"], email=user_data.email),
+        data=SignUpResponse(id=PyObjectId(result["user_id"]), email=user_data.email),
     )
+
+
+@router.post("/user/confirm", response_model=ApiResponse[ConfirmUserResponse])
+async def confirm_user(payload: ConfirmUserRequest):
+    """Confirm User"""
+    user = await AuthService().confirm_user(email=payload.email, otp=payload.otp)
+
+    return ApiResponse(
+        message="Email verified successfully",
+        data=ConfirmUserResponse.model_validate(user),
+    )
+
+
+@router.post("/user/confirm/resend", response_model=ApiResponse[None])
+async def resend_confirmation_email(payload: ResendConfirmationEmailRequest):
+    """Resend Confirmation Email"""
+    result = await AuthService().resend_confirmation_email(email=payload.email)
+
+    return ApiResponse(message=result["message"])
